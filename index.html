@@ -322,11 +322,11 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
             
             <div class="w-full mb-4">
                 <label class="block text-xs font-semibold text-[#00E5FF] mb-1.5 uppercase tracking-wider">Operator ID</label>
-                <input type="text" id="login-user" value="global" class="w-full bg-[#0b1423] border border-gray-700 rounded p-3 text-white outline-none focus:border-[#00E5FF] transition-all font-mono text-sm" placeholder="Operator ID" />
+                <input type="text" id="login-user" class="w-full bg-[#0b1423] border border-gray-700 rounded p-3 text-white outline-none focus:border-[#00E5FF] transition-all font-mono text-sm" placeholder="Operator ID" />
             </div>
             <div class="w-full mb-6">
                 <label class="block text-xs font-semibold text-[#00E5FF] mb-1.5 uppercase tracking-wider">Passcode</label>
-                <input type="password" id="login-pass" value="access" class="w-full bg-[#0b1423] border border-gray-700 rounded p-3 text-white outline-none focus:border-[#00E5FF] transition-all font-mono text-sm" placeholder="Passcode" />
+                <input type="password" id="login-pass" class="w-full bg-[#0b1423] border border-gray-700 rounded p-3 text-white outline-none focus:border-[#00E5FF] transition-all font-mono text-sm" placeholder="Passcode" />
             </div>
             
             <div id="login-error" class="hidden w-full text-center text-xs text-[#FF3366] mb-5 font-bold bg-[#FF3366]/10 border border-[#FF3366]/50 py-2.5 rounded animate-flash tracking-wider">ACCESS DENIED</div>
@@ -336,7 +336,7 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
             </button>
 
             <div class="mt-6 text-[10px] text-gray-400 font-mono border border-gray-800 bg-black/50 px-3 py-1.5 rounded text-center">
-                Default: <span class="text-[#00E5FF]">global</span> / <span class="text-[#00E5FF]">access</span>
+                Enter your authorized Operator ID and Passcode
             </div>
         </div>
     </div>
@@ -1897,12 +1897,6 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
             if (Number.isNaN(d.getTime())) return 'Activation date: Not recorded';
             return 'Activated: ' + d.toLocaleString(undefined, {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
         }
-        function dwdmFormatDeactivationDate(value) {
-            if (!value) return 'Deactivation date: Not recorded';
-            const d = new Date(value);
-            if (Number.isNaN(d.getTime())) return 'Deactivation date: Not recorded';
-            return 'Deactivated: ' + d.toLocaleString(undefined, {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
-        }
 
         function dwdmPersistState(reason='update') {
             try {
@@ -2004,30 +1998,22 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
                 else if (upper.includes('GOV')) tenantCounts.GOV++;
 
                 el.className = `channel-block ${tenantColorClass(tenant)} rounded border flex flex-col items-center justify-center font-mono text-[10px] font-bold cursor-pointer min-h-[38px]`;
-                const freqValue = ch.frequency !== null && ch.frequency !== undefined ? Number(ch.frequency) : null;
-                const wavelength = Number.isFinite(freqValue) && freqValue > 0 ? `${(299792.458 / freqValue).toFixed(2)} nm` : 'Wavelength N/A';
+                const freq = ch.frequency !== null && ch.frequency !== undefined ? `${Number(ch.frequency).toFixed(1)} THz` : 'Frequency N/A';
                 const status = isActive ? 'ACTIVE' : 'INACTIVE';
-                const activationLabel = dwdmFormatActivationDate(ch.activatedAt || ch.lastActivatedAt);
-                const deactivationLabel = dwdmFormatDeactivationDate(ch.deactivatedAt);
-                const historyLabel = isActive ? activationLabel : (ch.deactivatedAt ? deactivationLabel : activationLabel);
-                const displayTenant = tenant || ch.lastTenant || 'Unallocated';
-                el.title = `${displayTenant} · C${ch.channel} · ${wavelength} · ${status} · ${historyLabel}`;
+                const activationLabel = dwdmFormatActivationDate(ch.activatedAt);
+                el.title = `${tenant || 'Unallocated'} · C${ch.channel} · ${freq} · ${status} · ${activationLabel}`;
                 el.innerHTML = `
                     <span>C${ch.channel}</span>
                     <span class="text-[8px] opacity-80">${ch.frequency !== null && ch.frequency !== undefined ? Number(ch.frequency).toFixed(1) : '—'}</span>
-                    <div class="custom-tooltip">${displayTenant} · C${ch.channel} · ${wavelength} · ${status}<br>${historyLabel}</div>
+                    <div class="custom-tooltip">${tenant || 'Unallocated'} · C${ch.channel} · ${freq} · ${status}<br>${activationLabel}</div>
                 `;
                 el.onclick = () => {
-                    const deactivatedAt = dwdmNowIso();
-                    if (ch.tenant) ch.lastTenant = ch.tenant;
-                    if (ch.activatedAt) ch.lastActivatedAt = ch.activatedAt;
                     ch.tenant = null;
                     ch.status = 'INACTIVE';
-                    ch.deactivatedAt = deactivatedAt;
+                    ch.deactivatedAt = dwdmNowIso();
                     ch.activatedAt = null;
                     dwdmPersistState('channel-deactivated');
                     renderDwdmGrid();
-                    showToast(`C${ch.channel} deactivated • ${dwdmFormatDeactivationDate(deactivatedAt).replace('Deactivated: ','')}`, 'info');
                 };
                 grid.appendChild(el);
             });
@@ -2073,10 +2059,8 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
             const emptyCh = globalData.dwdm.grid.find(ch => !ch.tenant && String(ch.status).toUpperCase() !== 'ACTIVE');
             if (emptyCh) {
                 emptyCh.tenant = tenant.toUpperCase();
-                emptyCh.lastTenant = emptyCh.tenant;
                 emptyCh.status = 'ACTIVE';
                 emptyCh.activatedAt = dwdmNowIso();
-                emptyCh.lastActivatedAt = emptyCh.activatedAt;
                 emptyCh.deactivatedAt = null;
                 dwdmPersistState('channel-activated');
                 renderDwdmGrid();
@@ -2086,7 +2070,7 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
 
         function dwdmResetPhase() {
             syncDwdmCurrentGrid();
-            globalData.dwdm.grid.forEach(ch => { if(ch.tenant) ch.lastTenant=ch.tenant; if(ch.activatedAt) ch.lastActivatedAt=ch.activatedAt; ch.tenant = null; ch.status = 'INACTIVE'; ch.activatedAt = null; ch.deactivatedAt = dwdmNowIso(); });
+            globalData.dwdm.grid.forEach(ch => { ch.tenant = null; ch.status = 'INACTIVE'; ch.activatedAt = null; ch.deactivatedAt = dwdmNowIso(); });
             dwdmPersistState('phase-reset');
             renderDwdmGrid();
             showToast('Cleared all DWDM channel assignments for the selected phase', 'info');
@@ -3216,9 +3200,23 @@ window.ONM_DIAGNOSTIC_AGENT = window.ONM_DIAGNOSTIC_AGENT || {
             renderErpDashboard();
         }
 
-        window.onload = function() {
-            attemptGlobalLogin();
-        };
+        window.addEventListener('DOMContentLoaded', function() {
+            // Keep the login screen locked until the user explicitly submits credentials.
+            const userInput = document.getElementById('login-user');
+            const passInput = document.getElementById('login-pass');
+            if (userInput) userInput.focus();
+
+            [userInput, passInput].forEach(function(input) {
+                if (input) {
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            attemptGlobalLogin();
+                        }
+                    });
+                }
+            });
+        });
     
         let onmAccessState = { nodeId:null, protocol:null, command:'' };
         function onmOpenAccess(nodeId, protocol) {
